@@ -1,0 +1,9 @@
+fpl_username:fpluser@email.com
+fpl_password:fplpassword
+notification_email:personalemail@email.com
+notification_phone:1234561234
+smtp_username:smtpuser@email.com
+smtp_password:smtppassword
+min_sleep:30
+max_sleep:60
+notifications_enabled:True
