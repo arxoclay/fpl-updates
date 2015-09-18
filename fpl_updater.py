@@ -28,7 +28,7 @@ def GetBrowser():
     browser.set_handle_robots(False)
     return browser
 
-def LoginToFantasyPremierLeague(browser, configuration):
+def LoginToFantasyPremierLeague(browser, userConfiguration):
     response = browser.open("https://users.premierleague.com/PremierUser/account/login.html")
     formCount=0
     for form in browser.forms():
@@ -37,9 +37,10 @@ def LoginToFantasyPremierLeague(browser, configuration):
         formCount=formCount+1
       
     browser.select_form(nr=formCount)
-    browser.form["j_username"] = configuration['fpl_username']
-    browser.form["j_password"] = configuration['fpl_password']
+    browser.form["j_username"] = userConfiguration['fpl_username']
+    browser.form["j_password"] = userConfiguration['fpl_password']
     response = browser.submit()
+    print "Logged in user: " + userConfiguration['fpl_username']
 
 def GetPointsPage(browser):
     response = browser.open("http://fantasy.premierleague.com")
@@ -78,10 +79,11 @@ def GetCurrentEvents(soup):
 
     return events
 
-def Notify(updates, configuration):
+def Notify(updates, userConfiguration, configuration):
 
     if configuration['notifications_enabled'] == "True":
-        toaddrs = [configuration['notification_phone'] + "@tmomail.net", configuration['notification_email']]
+        print "Notifying user"
+        toaddrs = [userConfiguration['notification_phone'] + "@tmomail.net", userConfiguration['notification_email']]
         fromaddr = "notifier@fantasypremierleagueupdates.com"
         message_subject = "Fantasy Premier League updates"
         message_text = "\n".join(map(str,updates))
@@ -91,41 +93,52 @@ def Notify(updates, configuration):
         server.login(configuration['smtp_username'], configuration['smtp_password'])
         server.sendmail(fromaddr, toaddrs, message)
         server.quit()
-        
+    print "Updates for user " + userConfiguration['fpl_username']
     for update in updates:
         print update
 
-def Run(storedEvents, configuration):
+def Run(configuration, userConfiguration):
+    storedEvents = {}
     while True:
         try:
             randomSleepInterval = random.randint(int(configuration['min_sleep']), int(configuration['max_sleep']))
             print "Sleeping for " + str(randomSleepInterval) + " seconds"
             time.sleep(randomSleepInterval)
-            
-            browser = GetBrowser()
-            LoginToFantasyPremierLeague(browser, configuration)
-            response = GetPointsPage(browser)
-            soup = BeautifulSoup(response.read(),"html.parser")
 
-            # Get squad
-            squad = GetCurrentSquad(soup)
-            teamPlayers = squad[0]
-            benchPlayers = squad[1]
+            for user in userConfiguration['users']:
+                if user not in storedEvents:
+                    storedEvents[user] = []
+                    
+                browser = GetBrowser()
+                print "Logging in user: " + user
+                LoginToFantasyPremierLeague(browser, userConfiguration[user])
+                response = GetPointsPage(browser)
+                soup = BeautifulSoup(response.read(),"html.parser")
 
-            # Get events
-            events = GetCurrentEvents(soup)
+                print "Fetching squad"
+                # Get squad
+                squad = GetCurrentSquad(soup)
+                teamPlayers = squad[0]
+                benchPlayers = squad[1]
 
-            # Get relevant events
-            relevantEvents = filter(lambda x: x.player in teamPlayers or x.player in benchPlayers, events)
-            
-            # Figure out the updates
-            updates = filter(lambda x: x not in storedEvents, relevantEvents)
-            storedEvents = relevantEvents
-            
-            if len(updates) == 0:
-                print "No new updates :)"
-            else:
-                Notify(updates, configuration)
+                print "Fetching events"
+                # Get events
+                events = GetCurrentEvents(soup)
+
+                # Get relevant events
+                relevantEvents = filter(lambda x: x.player in teamPlayers or x.player in benchPlayers, events)
+
+                print "Computing updates"
+                # Figure out the updates
+                updates = filter(lambda x: x not in storedEvents[user], relevantEvents)
+
+                print str(len(updates)) + " updates found"
+                storedEvents[user] = relevantEvents
+                
+                if len(updates) == 0:
+                    print "No new updates :)"
+                else:
+                    Notify(updates, userConfiguration[user], configuration)
         except Exception, e:
             print e
 
@@ -133,9 +146,27 @@ def GetConfig(fileName):
     d = {}
     with open(fileName) as f:
         for line in f:
-           (key, val) = line.rstrip('\n').split(':')
-           d[key] = val
+            (key, val) = line.rstrip('\n').split(':')
+            d[key] = val
     return d
+
+def GetUserConfig(fileName):
+    userData = {}
+    userData['users'] = []
+    fields = []
+    with open(fileName) as f:
+        for line in f:
+            if len(fields) == 0:
+                fields = line.rstrip('\n').split(',')
+            else:
+                (a, b, c, d) = line.rstrip('\n').split(',')
+                userData["users"].append(a)
+                userData[a] = { fields[0] : a, fields[1] : b,
+                                        fields[2] : c, fields[3] : d}
+    return userData
     
 configuration = GetConfig("Config.txt")
-Run([], configuration)
+print "Configuration set to " + str(configuration)
+userConfiguration = GetUserConfig("UserConfig.txt")
+print "User configuration set to " + str(userConfiguration)
+Run(configuration, userConfiguration)
