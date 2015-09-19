@@ -3,6 +3,9 @@ from bs4 import BeautifulSoup
 import random
 import time
 import smtplib
+import datetime
+import os
+from unidecode import unidecode
 
 class Event:
     def __init__(self, name, player, quantity):
@@ -11,7 +14,7 @@ class Event:
         self.quantity = quantity
 
     def __str__(self):
-        return ", ".join([self.name, self.player, str(self.quantity)])
+        return ', '.join([self.name, unidecode(self.player), str(self.quantity)])
 
     def __eq__(self, other): 
         return self.__dict__ == other.__dict__
@@ -83,7 +86,13 @@ def Notify(updates, userConfiguration, configuration):
 
     if configuration['notifications_enabled'] == "True":
         print "Notifying user"
-        toaddrs = [userConfiguration['notification_phone'] + "@tmomail.net", userConfiguration['notification_email']]
+        phoneNumber = userConfiguration['notification_phone']
+        emailAddress =  userConfiguration['notification_email']
+        toaddrs = []
+        if phoneNumber:
+            toaddrs.append(phoneNumber + "@tmomail.net")
+        if emailAddress:
+            toaddrs.append(emailAddress)
         fromaddr = "notifier@fantasypremierleagueupdates.com"
         message_subject = "Fantasy Premier League updates"
         message_text = "\n".join(map(str,updates))
@@ -91,21 +100,35 @@ def Notify(updates, userConfiguration, configuration):
         server = smtplib.SMTP("smtp.gmail.com", 587)
         server.starttls()
         server.login(configuration['smtp_username'], configuration['smtp_password'])
-        server.sendmail(fromaddr, toaddrs, message)
+        #server.sendmail(fromaddr, toaddrs, message)
         server.quit()
     print "Updates for user " + userConfiguration['fpl_username']
     for update in updates:
         print update
 
-def Run(configuration, userConfiguration):
+def Run():
     storedEvents = {}
+    configuration = {}
+    userConfiguration = {}
     while True:
         try:
+            modifiedTime = os.stat('Config.txt').st_mtime
+            if not configuration or modifiedTime != configurationLastModified:
+                configuration = GetConfig("Config.txt")
+                configurationLastModified = modifiedTime
+                
             randomSleepInterval = random.randint(int(configuration['min_sleep']), int(configuration['max_sleep']))
             print "Sleeping for " + str(randomSleepInterval) + " seconds"
             time.sleep(randomSleepInterval)
 
+            modifiedTime = os.stat('UserConfig.txt').st_mtime
+            if not userConfiguration or modifiedTime != userConfigurationLastModified:
+                userConfiguration = GetUserConfig("UserConfig.txt")
+                userConfigurationLastModified = modifiedTime
+
             for user in userConfiguration['users']:
+                startTime = datetime.datetime.now()
+                print "Started processing user at " + startTime.time().isoformat()
                 if user not in storedEvents:
                     storedEvents[user] = []
                     
@@ -139,6 +162,12 @@ def Run(configuration, userConfiguration):
                     print "No new updates :)"
                 else:
                     Notify(updates, userConfiguration[user], configuration)
+
+                endTime = datetime.datetime.now()
+                print "Done processing user at " + endTime.time().isoformat()
+                print "Processing time: " + str((endTime - startTime).total_seconds()) + " seconds"
+
+ 
         except Exception, e:
             print e
 
@@ -148,6 +177,7 @@ def GetConfig(fileName):
         for line in f:
             (key, val) = line.rstrip('\n').split(':')
             d[key] = val
+    print "Configuration acquired " + str(d)
     return d
 
 def GetUserConfig(fileName):
@@ -163,10 +193,7 @@ def GetUserConfig(fileName):
                 userData["users"].append(a)
                 userData[a] = { fields[0] : a, fields[1] : b,
                                         fields[2] : c, fields[3] : d}
+    print "User configuration acquired " + str(userData)
     return userData
     
-configuration = GetConfig("Config.txt")
-print "Configuration set to " + str(configuration)
-userConfiguration = GetUserConfig("UserConfig.txt")
-print "User configuration set to " + str(userConfiguration)
-Run(configuration, userConfiguration)
+Run()
