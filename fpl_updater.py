@@ -100,7 +100,7 @@ def Notify(updates, userConfiguration, configuration):
         server = smtplib.SMTP("smtp.gmail.com", 587)
         server.starttls()
         server.login(configuration['smtp_username'], configuration['smtp_password'])
-        #server.sendmail(fromaddr, toaddrs, message)
+        server.sendmail(fromaddr, toaddrs, message)
         server.quit()
     print "Updates for user " + userConfiguration['fpl_username']
     for update in updates:
