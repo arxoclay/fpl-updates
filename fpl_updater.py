@@ -91,9 +91,7 @@ def Notify(updates, userConfiguration, configuration):
         emailAddress =  userConfiguration['notification_email']
         toaddrs = []
         if phoneDetails:
-            phoneDetailParts = phoneDetails.split("-")
-            carrier = phoneDetailParts[0]
-            phoneNumber = phoneDetailParts[1]
+            (carrier, phoneNumber) = phoneDetails.split("-")
             if carrier == "AT&T":
                 toaddrs.append(phoneNumber + "@txt.att.net")
             elif carrier == "Verizon":
