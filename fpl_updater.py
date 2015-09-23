@@ -6,6 +6,7 @@ import smtplib
 import datetime
 import os
 from unidecode import unidecode
+import logging
 
 class Event:
     def __init__(self, name, player, quantity):
@@ -86,11 +87,21 @@ def Notify(updates, userConfiguration, configuration):
 
     if configuration['notifications_enabled'] == "True":
         print "Notifying user"
-        phoneNumber = userConfiguration['notification_phone']
+        phoneDetails = userConfiguration['notification_phone']
         emailAddress =  userConfiguration['notification_email']
         toaddrs = []
-        if phoneNumber:
-            toaddrs.append(phoneNumber + "@tmomail.net")
+        if phoneDetails:
+            phoneDetailParts = phoneDetails.split("-")
+            carrier = phoneDetailParts[0]
+            phoneNumber = phoneDetailParts[1]
+            if carrier == "AT&T":
+                toaddrs.append(phoneNumber + "@txt.att.net")
+            elif carrier == "Verizon":
+                toaddrs.append(phoneNumber + "@vtext.com")
+            elif carrier == "TMobile":
+                toaddrs.append(phoneNumber + "@tmomail.net")
+            else:
+                raise ValueError('Unknown carrier specified. notification_phone set to ' + phoneDetails)
         if emailAddress:
             toaddrs.append(emailAddress)
         fromaddr = "notifier@fantasypremierleagueupdates.com"
@@ -170,6 +181,8 @@ def Run():
  
         except Exception, e:
             print e
+            logging.exception(datetime.datetime.now().isoformat())
+            
 
 def GetConfig(fileName):
     d = {}
@@ -195,5 +208,6 @@ def GetUserConfig(fileName):
                                         fields[2] : c, fields[3] : d}
     print "User configuration acquired " + str(userData)
     return userData
-    
+
+logging.basicConfig(level=logging.DEBUG, filename='error.log')   
 Run()
